@@ -22,6 +22,12 @@ package net.atos.entng.calendar.controllers;
 import java.util.Calendar;
 import java.util.Map;
 
+import com.mongodb.Mongo;
+import fr.wseduc.mongodb.MongoDb;
+import fr.wseduc.webutils.Either;
+import fr.wseduc.webutils.I18n;
+import io.vertx.core.eventbus.Message;
+import org.entcore.common.controller.ControllerHelper;
 import org.entcore.common.events.EventStore;
 import org.entcore.common.events.EventStoreFactory;
 import org.entcore.common.mongodb.MongoDbControllerHelper;
@@ -114,24 +120,26 @@ public class CalendarController extends MongoDbControllerHelper {
     @ApiDoc("Share calendar by id.")
     @SecuredAction(value = "calendar.manager", type = ActionType.RESOURCE)
     public void shareCalendarSubmit(final HttpServerRequest request) {
-        UserUtils.getUserInfos(eb, request, new Handler<UserInfos>() {
-            @Override
-            public void handle(final UserInfos user) {
-                if (user != null) {
-                    final String id = request.params().get("id");
-                    if (id == null || id.trim().isEmpty()) {
-                        badRequest(request);
-                        return;
-                    }
-
-                    JsonObject params = new JsonObject();
-                    params.put("profilUri", "/userbook/annuaire#" + user.getUserId() + "#" + user.getType());
-                    params.put("username", user.getUsername());
-                    params.put("calendarUri", "/calendar#/view/" + id);
-                    params.put("resourceUri", params.getString("calendarUri"));
-
-                    shareJsonSubmit(request, "calendar.share", false, params, "title");
+        UserUtils.getUserInfos(eb, request, user -> {
+            if (user != null) {
+                final String id = request.params().get("id");
+                if (id == null || id.trim().isEmpty()) {
+                    badRequest(request);
+                    return;
                 }
+
+                JsonObject params = new JsonObject();
+                params.put("profilUri", "/userbook/annuaire#" + user.getUserId() + "#" + user.getType());
+                params.put("username", user.getUsername());
+                params.put("calendarUri", "/calendar#/view/" + id);
+                params.put("resourceUri", params.getString("calendarUri"));
+                JsonObject pushNotif = new JsonObject()
+                        .put("title", "push.notif.calendar.share")
+                        .put("body", user.getUsername() + " " + I18n.getInstance().translate("calendar.shared.push.notif.body",
+                                getHost(request), I18n.acceptLanguage(request)));
+
+                params.put("pushNotif", pushNotif);
+                shareJsonSubmit(request, "calendar.share", false, params, "title");
             }
         });
     }
